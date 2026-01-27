@@ -1,0 +1,54 @@
+{
+    "name": "cc-cli-quota",
+    "displayName": "CC Cli Quota",
+    "description": "Monitoring AI CLI usage and quotas (Claude, Codex, Gemini, Z.AI, OpenRouter) in VS Code.",
+    "version": "1.0.0",
+    "publisher": "FlameZerg",
+    "repository": "https://github.com/FlameZerg/CC-Cli-Quota",
+    "engines": {
+        "vscode": "^1.90.0"
+    },
+    "categories": [
+        "AI"
+    ],
+    "activationEvents": [
+        "onCommand:cc-cli-quota.check",
+        "onCommand:cc-cli-quota.toggleProviders",
+        "onStartupFinished"
+    ],
+    "icon": "icon.png",
+    "main": "./extension.js",
+    "contributes": {
+        "commands": [
+            {
+                "command": "cc-cli-quota.check",
+                "title": "AI: Check Quota"
+            },
+            {
+                "command": "cc-cli-quota.toggleProviders",
+                "title": "AI: Toggle Providers"
+            }
+        ],
+        "configuration": {
+            "title": "CC Cli Quota",
+            "properties": {
+                "cclimits.enabledProviders": {
+                    "type": "array",
+                    "default": [
+                        "claude",
+                        "codex",
+                        "gemini",
+                        "zai",
+                        "openrouter"
+                    ],
+                    "description": "Enabled AI providers to check."
+                },
+                "cclimits.useCached": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Use cache if fresh (<60s)."
+                }
+            }
+        }
+    }
+}
