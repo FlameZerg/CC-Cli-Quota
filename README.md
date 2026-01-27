@@ -1,11 +1,11 @@
 ﻿# CC Cli Quota
 
-Monitor your AI CLI quotas and refresh time (Claude, Codex, Gemini, Z.AI, OpenRouter) in the status bar.
+Monitor your AI CLI quotas and refresh time (Claude, Codex, Gemini, Z.ai, Openrouter) in the status bar.
 
 ## Features
 
 - **Real-time Monitoring**: Displays peak usage for both 5-hour and 7-day windows in the status bar (e.g., `12%|5%`).
-- **Support for Multiple Providers**: Monitor Claude Code, OpenAI Codex/ChatGPT, Google Gemini, Z.AI, and OpenRouter.
+- **Support for Multiple Providers**: Monitor Claude Code, OpenAI Codex, Google Gemini, Z.ai, and Openrouter.
 - **Detailed Insights**: Hover over the status bar to see specific percentages and "Resets in" times for each model.
 - **Self-Contained**: Includes the `cclimits.py` monitoring engine internally.
 - **Smart Caching**: Automatically refreshes every 2 minutes with intelligent caching to minimize network overhead.

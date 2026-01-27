@@ -35,16 +35,17 @@ function activate(context) {
         const enabled = config.get('enabledProviders') || [];
         const useCached = config.get('useCached');
         const allProviders = [
-            { id: 'claude', label: 'claude', detail: 'Claude Code usage (5h/7d window)' },
-            { id: 'codex', label: 'codex', detail: 'ChatGPT/Codex usage (5h/7d window)' },
-            { id: 'gemini', label: 'gemini', detail: 'Google Gemini usage (GCP-based)' },
-            { id: 'zai', label: 'zai', detail: 'Z.AI shared token quota' },
-            { id: 'openrouter', label: 'openrouter', detail: 'OpenRouter API Credit balance' }
+            { id: 'claude', label: 'Claude', detail: 'Claude Code usage (5h/7d window)' },
+            { id: 'codex', label: 'Codex', detail: 'ChatGPT/Codex usage (5h/7d window)' },
+            { id: 'gemini', label: 'Gemini', detail: 'Google Gemini usage (GCP-based)' },
+            { id: 'zai', label: 'Zai', detail: 'Z.AI shared token quota' },
+            { id: 'openrouter', label: 'Openrouter', detail: 'OpenRouter API Credit balance' }
         ];
         
         const items = [
             { label: "--- Providers ---", kind: vscode.QuickPickItemKind.Separator },
             ...allProviders.map(p => ({
+                id: p.id,
                 label: p.label,
                 picked: enabled.includes(p.id),
                 description: enabled.includes(p.id) ? "$(check) Enabled" : "$(x) Disabled",
@@ -52,6 +53,7 @@ function activate(context) {
             })),
             { label: "--- Settings ---", kind: vscode.QuickPickItemKind.Separator },
             {
+                id: "useCache",
                 label: "Use Cache",
                 picked: useCached,
                 description: useCached ? "$(check) On" : "$(x) Off",
@@ -66,10 +68,10 @@ function activate(context) {
 
         if (selected) {
             const providerIds = allProviders.map(p => p.id);
-            const newEnabled = selected.filter(i => providerIds.includes(i.label)).map(i => i.label);
+            const newEnabled = selected.filter(i => providerIds.includes(i.id)).map(i => i.id);
             await config.update('enabledProviders', newEnabled, vscode.ConfigurationTarget.Global);
 
-            const newUseCached = selected.some(i => i.label === "Use Cache");
+            const newUseCached = selected.some(i => i.id === "useCache");
             await config.update('useCached', newUseCached, vscode.ConfigurationTarget.Global);
 
             vscode.window.showInformationMessage("CC Cli Quota configuration updated.");
@@ -180,7 +182,13 @@ async function updateStatusBar(logTrigger = false, bypassCache = false) {
             });
 
             // 3. Update Status Bar Text
-            let statusText = prioritizedProvider ? `$(pulse) AI: ${peak5h}%` : `$(circle-slash) AI: N/A`;
+            let displayLabel = "AI";
+            if (prioritizedProvider) {
+                // Capitalize first letter (e.g., 'codex' -> 'Codex')
+                displayLabel = prioritizedProvider.charAt(0).toUpperCase() + prioritizedProvider.slice(1);
+            }
+            
+            let statusText = prioritizedProvider ? `$(pulse) ${displayLabel}: ${peak5h}%` : `$(circle-slash) AI: N/A`;
             if (peak7d > 0) {
                 statusText += `|${peak7d}%`;
             }
