@@ -14,7 +14,7 @@
     "activationEvents": [
         "onStartupFinished"
     ],
-    "icon": "https://raw.githubusercontent.com/FlameZerg/CC-Cli-Quota/main/icon.png",
+    "icon": "icon.png",
     "main": "./extension.js",
     "contributes": {
         "commands": [

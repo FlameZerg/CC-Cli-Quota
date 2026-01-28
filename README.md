@@ -1,9 +1,9 @@
-﻿# <img src="https://raw.githubusercontent.com/FlameZerg/CC-Cli-Quota/main/icon.png" width="32" vertical-align="middle"> CC Cli Quota
+﻿# <img src="https://raw.githubusercontent.com/FlameZerg/CC-Cli-Quota/main/icon.png" width="36" vertical-align="middle"> CC Cli Quota
 
 [![Marketplace](https://img.shields.io/visual-studio-marketplace/v/FlameZerg.cc-cli-quota?style=flat-square&label=Marketplace)](https://marketplace.visualstudio.com/items?itemName=FlameZerg.cc-cli-quota)
 [![Installs](https://img.shields.io/visual-studio-marketplace/i/FlameZerg.cc-cli-quota?style=flat-square)](https://marketplace.visualstudio.com/items?itemName=FlameZerg.cc-cli-quota)
 
-**CC Cli Quota** is a professional, high-performance VS Code extension designed to provide real-time monitoring of your AI CLI usage and quotas for **Claude Code, OpenAI Codex, Google Gemini, Z.ai, and OpenRouter**.
+Monitoring of your AI CLI usage and quotas for **Claude Code, OpenAI Codex, Google Gemini, Z.ai, and OpenRouter**.
 
 ## ✨ Key Features
 
@@ -45,10 +45,10 @@
 
 ## ❤️ Support & Development
 
-This project is developed and maintained by college students passionate about AI efficiency. If this tool enhances your workflow, we would deeply appreciate your support!
+Developed by an ordinary college student. If this tool enhances your workflow, we would deeply appreciate your support!
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/FlameZerg/CC-Cli-Quota/main/donation.jpg" width="250" alt="Support Project">
   <br>
-  <b>Thank you for your support! 🚀</b>
+  <b>Aptos</b>
 </p>
