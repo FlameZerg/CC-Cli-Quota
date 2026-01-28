@@ -1,0 +1,15 @@
+cclimits              # Check all tools (detailed)
+cclimits --claude     # Claude only
+cclimits --codex      # Codex only
+cclimits --gemini     # Gemini only
+cclimits --zai        # Z.AI only
+cclimits --openrouter # OpenRouter only
+cclimits --json       # JSON output
+cclimits --oneline           # Compact one-liner (5h window)
+cclimits --oneline 7d        # Compact one-liner (7d window)
+cclimits --oneline both      # Compact one-liner (5h/7d combined)
+cclimits --oneline --noemoji # Color-coded text instead of emojis
+
+# Caching (for statusline integration)
+cclimits --oneline --cached        # Use cache if fresh (<60s)
+cclimits --oneline --cache-ttl 30  # Custom TTL in seconds

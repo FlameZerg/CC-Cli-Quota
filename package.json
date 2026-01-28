@@ -2,7 +2,7 @@
     "name": "cc-cli-quota",
     "displayName": "CC Cli Quota",
     "description": "Monitoring AI CLI usage and quotas (Claude, Codex, Gemini, Z.ai, Openrouter) in VS Code.",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "publisher": "FlameZerg",
     "repository": "https://github.com/FlameZerg/CC-Cli-Quota",
     "engines": {
@@ -12,11 +12,9 @@
         "AI"
     ],
     "activationEvents": [
-        "onCommand:cc-cli-quota.check",
-        "onCommand:cc-cli-quota.toggleProviders",
         "onStartupFinished"
     ],
-    "icon": "icon.png",
+    "icon": "https://raw.githubusercontent.com/FlameZerg/CC-Cli-Quota/main/icon.png",
     "main": "./extension.js",
     "contributes": {
         "commands": [
@@ -47,6 +45,23 @@
                     "type": "boolean",
                     "default": true,
                     "description": "Use cache if fresh (<60s)."
+                },
+                "cclimits.zaiApiKey": {
+                    "type": "string",
+                    "default": "",
+                    "description": "Z.AI API Key (Required for Z.AI monitoring)."
+                },
+                "cclimits.openrouterApiKey": {
+                    "type": "string",
+                    "default": "",
+                    "description": "OpenRouter API Key (Required for OpenRouter monitoring)."
+                },
+                "cclimits.refreshInterval": {
+                    "type": "integer",
+                    "default": 2,
+                    "minimum": 1,
+                    "maximum": 60,
+                    "description": "Refresh interval in minutes (default 2)."
                 }
             }
         }
