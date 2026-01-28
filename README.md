@@ -1,6 +1,7 @@
 ﻿# <img src="https://raw.githubusercontent.com/FlameZerg/CC-Cli-Quota/main/icon.png" width="36" vertical-align="middle"> CC Cli Quota
 
 [![Marketplace](https://img.shields.io/visual-studio-marketplace/v/FlameZerg.cc-cli-quota?style=flat-square&label=Marketplace)](https://marketplace.visualstudio.com/items?itemName=FlameZerg.cc-cli-quota)
+[![Open VSX](https://img.shields.io/open-vsx/v/FlameZerg/cc-cli-quota?style=flat-square&label=Open%20VSX)](https://open-vsx.org/extension/FlameZerg/cc-cli-quota)
 [![Installs](https://img.shields.io/visual-studio-marketplace/i/FlameZerg.cc-cli-quota?style=flat-square)](https://marketplace.visualstudio.com/items?itemName=FlameZerg.cc-cli-quota)
 
 Monitoring of your AI CLI usage and quotas for **Claude Code, OpenAI Codex, Google Gemini, Z.ai, and OpenRouter**.
@@ -18,7 +19,7 @@ Monitoring of your AI CLI usage and quotas for **Claude Code, OpenAI Codex, Goog
 
 ### 📦 Installation
 
-1. Install the extension via the [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=FlameZerg.cc-cli-quota) or manual `.vsix` file.
+1. Install the extension via the [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=FlameZerg.cc-cli-quota), [Open VSX Registry](https://open-vsx.org/extension/FlameZerg/cc-cli-quota), or manual `.vsix` file.
 2. Ensure **Python 3.x** is installed and available in your system path.
 
 ### 🛠️ Configuration
