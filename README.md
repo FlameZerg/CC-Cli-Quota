@@ -41,6 +41,7 @@ Monitoring of your AI CLI usage and quotas for **Claude Code, OpenAI Codex, Goog
 - **VS Code**: `^1.90.0`
 - **Python**: `3.6+`
 - **Platform**: Windows, macOS, Linux
+- **Node.js**: `18.x+` (Recommended)
 
 ---
 

@@ -2,7 +2,7 @@
     "name": "cc-cli-quota",
     "displayName": "CC Cli Quota",
     "description": "Monitoring AI CLI usage and quotas (Claude, Codex, Gemini, Z.ai, Openrouter) in VS Code.",
-    "version": "1.1.0",
+    "version": "1.1.1",
     "publisher": "FlameZerg",
     "repository": "https://github.com/FlameZerg/CC-Cli-Quota",
     "engines": {

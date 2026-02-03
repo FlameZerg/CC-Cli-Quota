@@ -135,8 +135,19 @@ function activate(context) {
     });
     context.subscriptions.push(toggleCmd);
 
+    const config = vscode.workspace.getConfiguration('cclimits');
     updateStatusBar();
-    startTimer((config.get('refreshInterval') || 2) * 60); 
+    startTimer((config.get('refreshInterval') || 2) * 60);
+
+    // Listen for configuration changes
+    context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(e => {
+        if (e.affectsConfiguration('cclimits.refreshInterval')) {
+            const newConfig = vscode.workspace.getConfiguration('cclimits');
+            const newInterval = newConfig.get('refreshInterval') || 2;
+            startTimer(newInterval * 60);
+            outputChannel.appendLine(`[Info] Refresh interval updated to ${newInterval} minutes.`);
+        }
+    }));
 }
 
 function startTimer(seconds) {
