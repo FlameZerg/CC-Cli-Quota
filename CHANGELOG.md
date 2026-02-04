@@ -1,8 +1,12 @@
 # Changelog
 
-All notable changes to the "cc-cli-quota" extension will be documented in this file.
+## [1.1.2]
 
-## [1.1.1] - 2026-02-03
+### Fixed
+
+- Fixed QuickPick selection state persistence for API Keys and Refresh Interval.
+
+## [1.1.1]
 
 ### Fixed
 

@@ -37,6 +37,11 @@ function activate(context) {
         const config = vscode.workspace.getConfiguration('cclimits');
         const enabled = config.get('enabledProviders') || [];
         const useCached = config.get('useCached');
+        const zaiKey = config.get('zaiApiKey');
+        const openRouterKey = config.get('openrouterApiKey');
+        const refreshInterval = config.get('refreshInterval') || 2;
+        const autoRefresh = config.get('autoRefresh') !== false; // Default true
+
         const allProviders = [
             { id: 'claude', label: 'Claude', detail: 'Claude Code usage (5h/7d)' },
             { id: 'codex', label: 'Codex', detail: 'ChatGPT/Codex usage (5h/7d)' },
@@ -44,8 +49,6 @@ function activate(context) {
             { id: 'zai', label: 'Zai', detail: 'Z.AI shared token quota' },
             { id: 'openrouter', label: 'Openrouter', detail: 'OpenRouter API Credit balance' }
         ];
-        
-        const refreshInterval = config.get('refreshInterval') || 2;
         
         const items = [
             { label: "--- Providers ---", kind: vscode.QuickPickItemKind ? vscode.QuickPickItemKind.Separator : undefined },
@@ -60,18 +63,21 @@ function activate(context) {
             {
                 id: "setZaiKey",
                 label: "$(key) Set Z.AI API Key",
-                detail: config.get('zaiApiKey') ? "Key stored (****" + config.get('zaiApiKey').slice(-4) + ")" : "Please configure your Z.AI API Key"
+                picked: !!zaiKey,
+                detail: zaiKey ? "Key stored (****" + zaiKey.slice(-4) + ")" : "Please configure your Z.AI API Key"
             },
             {
                 id: "setOpenRouterKey",
                 label: "$(key) Set OpenRouter API Key",
-                detail: config.get('openrouterApiKey') ? "Key stored (****" + config.get('openrouterApiKey').slice(-4) + ")" : "Please configure your OpenRouter API Key"
+                picked: !!openRouterKey,
+                detail: openRouterKey ? "Key stored (****" + openRouterKey.slice(-4) + ")" : "Please configure your OpenRouter API Key"
             },
             { label: "--- Settings ---", kind: vscode.QuickPickItemKind ? vscode.QuickPickItemKind.Separator : undefined },
             {
                 id: "setRefreshInterval",
                 label: "$(watch) Set Refresh Interval",
-                detail: `Current: Every ${refreshInterval} minutes`
+                picked: autoRefresh,
+                detail: autoRefresh ? `Active: Every ${refreshInterval} minutes` : `Disabled (Default: ${refreshInterval}m)`
             },
             {
                 id: "useCache",
@@ -88,24 +94,46 @@ function activate(context) {
         });
 
         if (selected) {
-            // Handle API Key settings 
+            // Handle Z.AI Key
             if (selected.some(i => i.id === "setZaiKey")) {
+                // If selected, always prompt to allow editing
                 const key = await vscode.window.showInputBox({ 
-                    prompt: "Enter Z.AI API Key", 
+                    prompt: "Enter Z.AI API Key (Leave empty to clear)", 
                     password: true,
-                    value: config.get('zaiApiKey') 
+                    value: zaiKey || ""
                 });
-                if (key !== undefined) await config.update('zaiApiKey', key, vscode.ConfigurationTarget.Global);
+                if (key !== undefined) {
+                     await config.update('zaiApiKey', key, vscode.ConfigurationTarget.Global);
+                }
+            } else {
+                // Unchecked -> Clear key if it exists
+                if (zaiKey) await config.update('zaiApiKey', "", vscode.ConfigurationTarget.Global);
             }
+
+            // Handle OpenRouter Key
             if (selected.some(i => i.id === "setOpenRouterKey")) {
                 const key = await vscode.window.showInputBox({ 
-                    prompt: "Enter OpenRouter API Key", 
+                    prompt: "Enter OpenRouter API Key (Leave empty to clear)", 
                     password: true,
-                    value: config.get('openrouterApiKey') 
+                    value: openRouterKey || ""
                 });
-                if (key !== undefined) await config.update('openrouterApiKey', key, vscode.ConfigurationTarget.Global);
+                if (key !== undefined) {
+                    await config.update('openrouterApiKey', key, vscode.ConfigurationTarget.Global);
+                }
+            } else {
+                // Unchecked -> Clear key if it exists
+                if (openRouterKey) await config.update('openrouterApiKey', "", vscode.ConfigurationTarget.Global);
             }
+
+            // Handle Refresh Interval
             if (selected.some(i => i.id === "setRefreshInterval")) {
+                // Check if we need to enable it
+                if (!autoRefresh) {
+                    await config.update('autoRefresh', true, vscode.ConfigurationTarget.Global);
+                }
+                
+                // Always prompt if checked, to allow changing the value
+                // Use current config value as default
                 const val = await vscode.window.showInputBox({ 
                     prompt: "Enter refresh interval (1-60 minutes)", 
                     placeHolder: "2",
@@ -119,6 +147,17 @@ function activate(context) {
                     const newInterval = parseInt(val);
                     await config.update('refreshInterval', newInterval, vscode.ConfigurationTarget.Global);
                     startTimer(newInterval * 60);
+                } else if (!autoRefresh) {
+                    // If user cancelled input but enabled the checkbox (and it was previously disabled)
+                    // we should probably start the timer with existing interval
+                     startTimer(refreshInterval * 60);
+                }
+            } else {
+                // Unchecked -> Disable auto refresh
+                if (autoRefresh) {
+                    await config.update('autoRefresh', false, vscode.ConfigurationTarget.Global);
+                    if (refreshTimer) clearInterval(refreshTimer);
+                    refreshTimer = null;
                 }
             }
 
@@ -137,15 +176,28 @@ function activate(context) {
 
     const config = vscode.workspace.getConfiguration('cclimits');
     updateStatusBar();
-    startTimer((config.get('refreshInterval') || 2) * 60);
+    
+    // Initial start based on config
+    const autoRefresh = config.get('autoRefresh') !== false;
+    if (autoRefresh) {
+        startTimer((config.get('refreshInterval') || 2) * 60);
+    }
 
     // Listen for configuration changes
     context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(e => {
-        if (e.affectsConfiguration('cclimits.refreshInterval')) {
+        if (e.affectsConfiguration('cclimits.refreshInterval') || e.affectsConfiguration('cclimits.autoRefresh')) {
             const newConfig = vscode.workspace.getConfiguration('cclimits');
             const newInterval = newConfig.get('refreshInterval') || 2;
-            startTimer(newInterval * 60);
-            outputChannel.appendLine(`[Info] Refresh interval updated to ${newInterval} minutes.`);
+            const newAuto = newConfig.get('autoRefresh') !== false;
+            
+            if (newAuto) {
+                startTimer(newInterval * 60);
+                outputChannel.appendLine(`[Info] Auto-refresh active: ${newInterval}m.`);
+            } else {
+                if (refreshTimer) clearInterval(refreshTimer);
+                refreshTimer = null;
+                outputChannel.appendLine(`[Info] Auto-refresh disabled.`);
+            }
         }
     }));
 }
