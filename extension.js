@@ -28,8 +28,11 @@ function activate(context) {
             terminal = vscode.window.createTerminal(terminalName);
         }
         terminal.show();
+        const reverseDisplay = vscode.workspace.getConfiguration('cclimits').get('reverseDisplay') === true;
+        let cmd = `python "${scriptPath}"`;
+        if (reverseDisplay) cmd += ' --reverse';
         // Run without --json to get pretty colored output
-        terminal.sendText(`python "${scriptPath}"`);
+        terminal.sendText(cmd);
     });
     context.subscriptions.push(checkCmd);
 
@@ -73,6 +76,13 @@ function activate(context) {
                 detail: openRouterKey ? "Key stored (****" + openRouterKey.slice(-4) + ")" : "Please configure your OpenRouter API Key"
             },
             { label: "--- Settings ---", kind: vscode.QuickPickItemKind ? vscode.QuickPickItemKind.Separator : undefined },
+            {
+                id: "toggleReverseDisplay",
+                label: "$(arrow-swap) Toggle Display Mode",
+                picked: config.get('reverseDisplay') === true,
+                description: config.get('reverseDisplay') ? "$(check) 100% = Full Quota" : "$(x) 0% = Full Quota",
+                detail: config.get('reverseDisplay') ? "Reversed mode: 100%->0% (100% means full quota)" : "Default mode: 0%->100% (0% means full quota)"
+            },
             {
                 id: "setRefreshInterval",
                 label: "$(watch) Set Refresh Interval",
@@ -124,6 +134,10 @@ function activate(context) {
                 // Unchecked -> Clear key if it exists
                 if (openRouterKey) await config.update('openrouterApiKey', "", vscode.ConfigurationTarget.Global);
             }
+
+            // Handle Reverse Display
+            const newReverseDisplay = selected.some(i => i.id === "toggleReverseDisplay");
+            await config.update('reverseDisplay', newReverseDisplay, vscode.ConfigurationTarget.Global);
 
             // Handle Refresh Interval
             if (selected.some(i => i.id === "setRefreshInterval")) {
@@ -207,21 +221,28 @@ function startTimer(seconds) {
     refreshTimer = setInterval(() => updateStatusBar(), seconds * 1000);
 }
 
-async function updateStatusBar(logTrigger = false, bypassCache = false) {
+let lastResults = {};
+
+async function updateStatusBar(logTrigger = false, bypassCache = false, isRetry = false, providersToRetry = null) {
     const config = vscode.workspace.getConfiguration('cclimits');
     const enabled = config.get('enabledProviders') || [];
     const useCached = config.get('useCached') && !bypassCache;
+    const reverseDisplay = config.get('reverseDisplay') === true;
     
-    let command = `python "${scriptPath}" --json`;
-    if (useCached) command += ` --cached`;
+    // If retrying, only fetch specific providers. Otherwise fetch all enabled.
+    const providersToFetch = isRetry && providersToRetry ? providersToRetry : enabled;
 
-    if (enabled.length > 0) {
-        enabled.forEach(p => command += ` --${p}`);
-    } else {
-        statusBarItems.forEach(item => item.hide());
-        fallbackStatusBarItem.show();
+    if (providersToFetch.length === 0) {
+        // Nothing to fetch? 
         return;
     }
+
+    let command = `python "${scriptPath}" --json`;
+    if (useCached && !isRetry) command += ` --cached`; // Don't use cache on retry usually
+    if (reverseDisplay) command += ` --reverse`;
+
+    providersToFetch.forEach(p => command += ` --${p}`);
+
 
     exec(command, {
         env: {
@@ -232,12 +253,24 @@ async function updateStatusBar(logTrigger = false, bypassCache = false) {
     }, (error, stdout) => {
         if (error) {
             outputChannel.appendLine(`[Error] ${error.message}`);
-            fallbackStatusBarItem.show();
+            
+            // If total failure (script didn't run), we might want to retry ALL enabled
+            if (!isRetry) {
+                if (statusBarItems.size === 0) fallbackStatusBarItem.show();
+                
+                outputChannel.appendLine(`[Info] Update failed completely. Retrying all in 10 seconds...`);
+                setTimeout(() => updateStatusBar(logTrigger, bypassCache, true, enabled), 10000);
+            }
             return;
         }
 
         try {
-            const results = JSON.parse(stdout);
+            const currentResults = JSON.parse(stdout);
+            
+            // Merge with last results
+            // If it's a retry, currentResults only has the retried providers
+            lastResults = { ...lastResults, ...currentResults };
+
             const providerNames = {
                 claude: 'Claude',
                 codex: 'Codex',
@@ -249,16 +282,36 @@ async function updateStatusBar(logTrigger = false, bypassCache = false) {
             const parsePct = (val) => val ? parseFloat(val.replace('%', '')) : 0;
 
             let anyVisible = false;
+            let failedProviders = [];
 
-            // Hide items for providers not in this update
+            // Identify which enabled providers failed or are missing in the MERGED results
+            // But for retry logic, we specifically care about the ones we just tried to fetch
+            providersToFetch.forEach(id => {
+                 if (!currentResults[id] || currentResults[id].error) {
+                     failedProviders.push(id);
+                 }
+            });
+
+            // Update UI based on MERGED lastResults
+            // Hide items for providers not in enabled list/or removed
             statusBarItems.forEach((item, id) => {
-                if (!results[id] || results[id].error || !enabled.includes(id)) {
+                if (!enabled.includes(id)) {
                     item.hide();
                 }
             });
 
-            Object.entries(results).forEach(([id, data]) => {
-                if (!data || data.error || !enabled.includes(id)) return;
+            Object.entries(lastResults).forEach(([id, data]) => {
+                if (!data || !enabled.includes(id)) return;
+                
+                // If it has an error, we don't necessarily hide it if we have stale data? 
+                // Actually cclimits.py returns {error: ...} on failure.
+                // If we have an error in lastResults, we probably shouldn't show it unless we want to show "Error" status?
+                // For now, let's keep behavior: hide if error.
+                if (data.error) {
+                    const item = statusBarItems.get(id);
+                    if (item) item.hide();
+                    return;
+                }
 
                 let item = statusBarItems.get(id);
                 if (!item) {
@@ -288,14 +341,16 @@ async function updateStatusBar(logTrigger = false, bypassCache = false) {
                     tooltip += `\n${line5h}\n${line7d}`;
                 } else if (id === 'gemini' && data.models) {
                     let gMax = 0;
+                    let gMin = 100;
                     Object.entries(data.models).forEach(([m, d]) => {
                         const val = parsePct(d.used);
                         if (val > gMax) gMax = val;
+                        if (val < gMin) gMin = val;
                         let line = `\n- ${d.used} (${m})`;
                         if (d.resets_in) line += ` | Reset in ${d.resets_in}`;
                         tooltip += line;
                     });
-                    p5h = gMax;
+                    p5h = reverseDisplay ? gMin : gMax;
                 } else if (id === 'zai') {
                     p5h = data.token_quota?.percentage || 0;
                     let line = `\n- ${p5h}% (Quota)`;
@@ -316,9 +371,23 @@ async function updateStatusBar(logTrigger = false, bypassCache = false) {
                 item.text = text;
                 item.tooltip = tooltip;
 
-                const max = Math.max(p5h, p7d);
-                if (max >= 90) item.color = new vscode.ThemeColor('statusBarItem.errorForeground');
-                else if (max >= 70) item.color = new vscode.ThemeColor('statusBarItem.warningForeground');
+                let applyReverseLogic = reverseDisplay && ['claude', 'codex', 'gemini', 'zai'].includes(id);
+                let isBad = false;
+                let isWarn = false;
+                if (!applyReverseLogic) {
+                    let stat = p5h;
+                    if (data.seven_day || data.secondary_window) stat = Math.max(p5h, p7d);
+                    if (stat >= 90) isBad = true;
+                    else if (stat >= 70) isWarn = true;
+                } else {
+                    let stat = p5h;
+                    if (data.seven_day || data.secondary_window) stat = Math.min(p5h, p7d);
+                    if (stat <= 10) isBad = true;
+                    else if (stat <= 30) isWarn = true;
+                }
+
+                if (isBad) item.color = new vscode.ThemeColor('statusBarItem.errorForeground');
+                else if (isWarn) item.color = new vscode.ThemeColor('statusBarItem.warningForeground');
                 else item.color = undefined;
 
                 item.show();
@@ -328,13 +397,32 @@ async function updateStatusBar(logTrigger = false, bypassCache = false) {
             if (anyVisible) {
                 fallbackStatusBarItem.hide();
             } else {
-                fallbackStatusBarItem.show();
+                if (statusBarItems.size === 0 || !anyVisible) {
+                     // Check if we really have nothing visible
+                     let reallyVisible = false;
+                     statusBarItems.forEach(i => { if(i.text) reallyVisible = true; });
+                     if (!reallyVisible) fallbackStatusBarItem.show();
+                }
             }
 
             if (logTrigger) outputChannel.appendLine(stdout);
+
+            // Trigger retry for partial failures
+            if (!isRetry && failedProviders.length > 0) {
+                 outputChannel.appendLine(`[Info] Partial update failed for: ${failedProviders.join(', ')}. Retrying in 10 seconds...`);
+                 setTimeout(() => updateStatusBar(logTrigger, bypassCache, true, failedProviders), 10000);
+            }
+
         } catch (e) {
             outputChannel.appendLine(`[Error] Parse failed: ${e.message}`);
-            fallbackStatusBarItem.show();
+            // Retry all if parse failed
+             if (!isRetry) {
+                outputChannel.appendLine(`[Info] Update failed (parse detection). Retrying all in 10 seconds...`);
+                setTimeout(() => updateStatusBar(logTrigger, bypassCache, true, enabled), 10000);
+            }
+             if (statusBarItems.size === 0) {
+                fallbackStatusBarItem.show();
+            }
         }
     });
 }

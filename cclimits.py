@@ -258,7 +258,7 @@ def get_claude_credentials() -> str | None:
     return os.environ.get("CLAUDE_ACCESS_TOKEN")
 
 
-def get_claude_usage() -> dict:
+def get_claude_usage(reverse=False) -> dict:
     """Fetch Claude Code usage from Anthropic API"""
     token = get_claude_credentials()
     if not token:
@@ -276,22 +276,30 @@ def get_claude_usage() -> dict:
         result = {"status": "ok"}
 
         if "five_hour" in data and data["five_hour"]:
+            util = data['five_hour'].get('utilization', 0)
+            u_val = 100 - util if reverse else util
+            r_val = util if reverse else 100 - util
             result["five_hour"] = {
-                "used": f"{data['five_hour'].get('utilization', 0):.1f}%",
-                "remaining": f"{100 - data['five_hour'].get('utilization', 0):.1f}%",
+                "used": f"{u_val:.1f}%",
+                "remaining": f"{r_val:.1f}%",
                 "resets_in": format_reset_time(data['five_hour'].get('resets_at')),
             }
 
         if "seven_day" in data and data["seven_day"]:
+            util = data['seven_day'].get('utilization', 0)
+            u_val = 100 - util if reverse else util
+            r_val = util if reverse else 100 - util
             result["seven_day"] = {
-                "used": f"{data['seven_day'].get('utilization', 0):.1f}%",
-                "remaining": f"{100 - data['seven_day'].get('utilization', 0):.1f}%",
+                "used": f"{u_val:.1f}%",
+                "remaining": f"{r_val:.1f}%",
                 "resets_in": format_reset_time(data['seven_day'].get('resets_at')),
             }
 
         if "seven_day_opus" in data and data["seven_day_opus"]:
+            util = data['seven_day_opus'].get('utilization', 0)
+            u_val = 100 - util if reverse else util
             result["opus"] = {
-                "used": f"{data['seven_day_opus'].get('utilization', 0):.1f}%",
+                "used": f"{u_val:.1f}%",
             }
 
         return result
@@ -333,7 +341,7 @@ def get_openai_credentials() -> dict:
     return result
 
 
-def get_codex_usage() -> dict:
+def get_codex_usage(reverse=False) -> dict:
     """Fetch Codex usage via ChatGPT backend API"""
     creds = get_openai_credentials()
 
@@ -365,9 +373,12 @@ def get_codex_usage() -> dict:
             if rate_limit := data.get("rate_limit", {}):
                 if primary := rate_limit.get("primary_window"):
                     window_hours = primary.get("limit_window_seconds", 18000) // 3600
+                    util = primary.get('used_percent', 0)
+                    u_val = 100 - util if reverse else util
+                    r_val = util if reverse else 100 - util
                     result["primary_window"] = {
-                        "used": f"{primary.get('used_percent', 0)}%",
-                        "remaining": f"{100 - primary.get('used_percent', 0)}%",
+                        "used": f"{u_val}%",
+                        "remaining": f"{r_val}%",
                         "window": f"{window_hours}h",
                     }
                     # Calculate reset time
@@ -383,9 +394,12 @@ def get_codex_usage() -> dict:
                 # Secondary rate limit (7-day window)
                 if secondary := rate_limit.get("secondary_window"):
                     window_days = secondary.get("limit_window_seconds", 604800) // 86400
+                    util = secondary.get('used_percent', 0)
+                    u_val = 100 - util if reverse else util
+                    r_val = util if reverse else 100 - util
                     result["secondary_window"] = {
-                        "used": f"{secondary.get('used_percent', 0)}%",
-                        "remaining": f"{100 - secondary.get('used_percent', 0)}%",
+                        "used": f"{u_val}%",
+                        "remaining": f"{r_val}%",
                         "window": f"{window_days}d",
                     }
                     reset_secs = secondary.get("reset_after_seconds", 0)
@@ -404,8 +418,10 @@ def get_codex_usage() -> dict:
             # Code review quota (separate)
             if review_limit := data.get("code_review_rate_limit", {}):
                 if review_primary := review_limit.get("primary_window"):
+                    util = review_primary.get('used_percent', 0)
+                    u_val = 100 - util if reverse else util
                     result["code_review"] = {
-                        "used": f"{review_primary.get('used_percent', 0)}%",
+                        "used": f"{u_val}%",
                     }
 
             return result
@@ -665,7 +681,7 @@ def get_gemini_credentials() -> dict | None:
     return result if result else None
 
 
-def get_gemini_usage() -> dict:
+def get_gemini_usage(reverse=False) -> dict:
     """Fetch Gemini usage via Cloud Code Assist API"""
     creds = get_gemini_credentials()
     if not creds:
@@ -755,6 +771,8 @@ def get_gemini_usage() -> dict:
                             # Convert to percentage used
                             used_pct = round((1 - remaining) * 100, 1)
                             remaining_pct = round(remaining * 100, 1)
+                            if reverse:
+                                used_pct, remaining_pct = remaining_pct, used_pct
 
                             result["models"][model_id] = {
                                 "used": f"{used_pct}%",
@@ -803,7 +821,7 @@ def get_zai_credentials() -> str | None:
     return None
 
 
-def get_zai_usage() -> dict:
+def get_zai_usage(reverse=False) -> dict:
     """Fetch Z.AI usage from their monitor API"""
     api_key = get_zai_credentials()
 
@@ -833,6 +851,9 @@ def get_zai_usage() -> dict:
                 used = limit.get("currentValue", 0)
                 remaining = limit.get("remaining", 0)
                 pct = limit.get("percentage", 0)
+                
+                if reverse:
+                    pct = round(100.0 - pct, 1)
 
                 result["token_quota"] = {
                     "limit": total,
@@ -897,7 +918,7 @@ def get_zai_usage() -> dict:
     return result
 
 
-def print_section(name: str, data: dict):
+def print_section(name: str, data: dict, reverse: bool = False):
     """Pretty print a section"""
     print(f"\n{'='*50}")
     print(f"  {name}")
@@ -921,19 +942,20 @@ def print_section(name: str, data: dict):
     if "five_hour" in data:
         fh = data["five_hour"]
         print(f"\n  5-Hour Window:")
-        print(f"    Used:      {fh['used']}")
-        print(f"    Remaining: {fh['remaining']}")
-        print(f"    Resets in: {fh['resets_in']}")
+        print(f"    {'Remaining:' if reverse else 'Used:     '} {fh['used']}")
+        print(f"    {'Used:     ' if reverse else 'Remaining:'} {fh['remaining']}")
+        print(f"    Resets in:  {fh['resets_in']}")
 
     if "seven_day" in data:
         sd = data["seven_day"]
         print(f"\n  7-Day Window:")
-        print(f"    Used:      {sd['used']}")
-        print(f"    Remaining: {sd['remaining']}")
-        print(f"    Resets in: {sd['resets_in']}")
+        print(f"    {'Remaining:' if reverse else 'Used:     '} {sd['used']}")
+        print(f"    {'Used:     ' if reverse else 'Remaining:'} {sd['remaining']}")
+        print(f"    Resets in:  {sd['resets_in']}")
 
     if "opus" in data:
-        print(f"\n  Opus (7-day): {data['opus']['used']} used")
+        label = "remaining" if reverse else "used"
+        print(f"\n  Opus (7-day): {data['opus']['used']} {label}")
 
     # Codex-specific (ChatGPT subscription quotas)
     if "plan" in data:
@@ -943,23 +965,24 @@ def print_section(name: str, data: dict):
         pw = data["primary_window"]
         window = pw.get("window", "5h")
         print(f"\n  {window} Window:")
-        print(f"    Used:      {pw['used']}")
-        print(f"    Remaining: {pw['remaining']}")
+        print(f"    {'Remaining:' if reverse else 'Used:     '} {pw['used']}")
+        print(f"    {'Used:     ' if reverse else 'Remaining:'} {pw['remaining']}")
         if "resets_in" in pw:
-            print(f"    Resets in: {pw['resets_in']}")
+            print(f"    Resets in:  {pw['resets_in']}")
 
     if "secondary_window" in data:
         sw = data["secondary_window"]
         window = sw.get("window", "7d")
         print(f"\n  {window} Window:")
-        print(f"    Used:      {sw['used']}")
-        print(f"    Remaining: {sw['remaining']}")
+        print(f"    {'Remaining:' if reverse else 'Used:     '} {sw['used']}")
+        print(f"    {'Used:     ' if reverse else 'Remaining:'} {sw['remaining']}")
         if "resets_in" in sw:
-            print(f"    Resets in: {sw['resets_in']}")
+            print(f"    Resets in:  {sw['resets_in']}")
 
     if "code_review" in data:
         cr = data["code_review"]
-        print(f"\n  Code Review Quota: {cr['used']} used")
+        label = "remaining" if reverse else "used"
+        print(f"\n  Code Review Quota: {cr['used']} {label}")
 
     if "limit_reached" in data:
         print(f"  ⚠️  Rate limit reached!")
@@ -1000,20 +1023,24 @@ def print_section(name: str, data: dict):
                     remaining = model_data.get("remaining", "?")
                     reset = model_data.get("resets_in", "")
                     reset_str = f" (resets: {reset})" if reset else ""
-                    print(f"    {tier_name}: {used} used, {remaining} remaining{reset_str}")
+                    label1 = "remaining" if reverse else "used"
+                    label2 = "used" if reverse else "remaining"
+                    print(f"    {tier_name}: {used} {label1}, {remaining} {label2}{reset_str}")
                     break  # Only need first model from each tier
 
 
     # Z.AI-specific
     if "token_quota" in data:
         tq = data["token_quota"]
-        used_pct = tq.get("percentage", 0)
-        remaining_pct = 100 - used_pct
+        val1 = tq.get("percentage", 0)
+        val2 = round(100.0 - val1, 1)
+        label1 = "Remaining" if reverse else "Used"
+        label2 = "Used" if reverse else "Remaining"
         print(f"\n  Token Quota:")
-        print(f"    Used:      {used_pct}%")
-        print(f"    Remaining: {remaining_pct}%")
+        print(f"    {label1+':':<11} {val1}%")
+        print(f"    {label2+':':<11} {val2}%")
         if "resets_in" in tq:
-            print(f"    Resets in: {tq['resets_in']}")
+            print(f"    Resets in:  {tq['resets_in']}")
         # Show actual numbers
         if tq.get("limit"):
             print(f"    ({tq['used']:,} / {tq['limit']:,} tokens)")
@@ -1067,8 +1094,10 @@ def print_section(name: str, data: dict):
         print(f"  🔄 {data['hint_refresh']}")
 
 
-def get_color_for_pct(pct: float) -> str:
+def get_color_for_pct(pct: float, reverse: bool = False) -> str:
     """Get ANSI color code based on usage percentage"""
+    if reverse:
+        pct = 100.0 - pct
     if pct >= 100:
         return COLORS['bold_red']
     elif pct >= 90:
@@ -1079,14 +1108,16 @@ def get_color_for_pct(pct: float) -> str:
         return COLORS['green']
 
 
-def colorize_pct(pct_str: str, pct: float) -> str:
+def colorize_pct(pct_str: str, pct: float, reverse: bool = False) -> str:
     """Wrap percentage string in appropriate color"""
-    color = get_color_for_pct(pct)
+    color = get_color_for_pct(pct, reverse)
     return f"{color}{pct_str}{COLORS['reset']}"
 
 
-def get_status_icon(pct: float) -> str:
+def get_status_icon(pct: float, reverse: bool = False) -> str:
     """Get status emoji based on usage percentage"""
+    if reverse:
+        pct = 100.0 - pct
     if pct >= 100:
         return "❌"
     elif pct >= 90:
@@ -1097,7 +1128,7 @@ def get_status_icon(pct: float) -> str:
         return "✅"
 
 
-def print_oneline(results: dict, window: str = "5h", use_color: bool = False):
+def print_oneline(results: dict, window: str = "5h", use_color: bool = False, reverse: bool = False):
     """Print compact one-liner output"""
     parts = []
     error_icon = f"{COLORS['bold_red']}ERR{COLORS['reset']}" if use_color else "❌"
@@ -1112,23 +1143,23 @@ def print_oneline(results: dict, window: str = "5h", use_color: bool = False):
                 max_pct = max(float(pct_5h), float(pct_7d))
                 pct_display = f"{pct_5h}%/{pct_7d}%"
                 if use_color:
-                    parts.append(f"Claude: {colorize_pct(pct_display, max_pct)}")
+                    parts.append(f"Claude: {colorize_pct(pct_display, max_pct, reverse)}")
                 else:
-                    parts.append(f"Claude: {pct_display} {get_status_icon(max_pct)}")
+                    parts.append(f"Claude: {pct_display} {get_status_icon(max_pct, reverse)}")
             elif window == "5h" and "five_hour" in data:
                 pct_str = data["five_hour"]["used"]
                 pct = float(pct_str.rstrip("%"))
                 if use_color:
-                    parts.append(f"Claude: {colorize_pct(pct_str, pct)} (5h)")
+                    parts.append(f"Claude: {colorize_pct(pct_str, pct, reverse)} (5h)")
                 else:
-                    parts.append(f"Claude: {pct_str} (5h) {get_status_icon(pct)}")
+                    parts.append(f"Claude: {pct_str} (5h) {get_status_icon(pct, reverse)}")
             elif window == "7d" and "seven_day" in data:
                 pct_str = data["seven_day"]["used"]
                 pct = float(pct_str.rstrip("%"))
                 if use_color:
-                    parts.append(f"Claude: {colorize_pct(pct_str, pct)} (7d)")
+                    parts.append(f"Claude: {colorize_pct(pct_str, pct, reverse)} (7d)")
                 else:
-                    parts.append(f"Claude: {pct_str} (7d) {get_status_icon(pct)}")
+                    parts.append(f"Claude: {pct_str} (7d) {get_status_icon(pct, reverse)}")
         elif "error" in data:
             parts.append(f"Claude: {error_icon}")
 
@@ -1142,23 +1173,23 @@ def print_oneline(results: dict, window: str = "5h", use_color: bool = False):
                 max_pct = max(float(pct_5h), float(pct_7d))
                 pct_display = f"{pct_5h}%/{pct_7d}%"
                 if use_color:
-                    parts.append(f"Codex: {colorize_pct(pct_display, max_pct)}")
+                    parts.append(f"Codex: {colorize_pct(pct_display, max_pct, reverse)}")
                 else:
-                    parts.append(f"Codex: {pct_display} {get_status_icon(max_pct)}")
+                    parts.append(f"Codex: {pct_display} {get_status_icon(max_pct, reverse)}")
             elif window == "5h" and "primary_window" in data:
                 pct_str = data["primary_window"]["used"]
                 pct = float(pct_str.rstrip("%"))
                 if use_color:
-                    parts.append(f"Codex: {colorize_pct(pct_str, pct)} (5h)")
+                    parts.append(f"Codex: {colorize_pct(pct_str, pct, reverse)} (5h)")
                 else:
-                    parts.append(f"Codex: {pct_str} (5h) {get_status_icon(pct)}")
+                    parts.append(f"Codex: {pct_str} (5h) {get_status_icon(pct, reverse)}")
             elif window == "7d" and "secondary_window" in data:
                 pct_str = data["secondary_window"]["used"]
                 pct = float(pct_str.rstrip("%"))
                 if use_color:
-                    parts.append(f"Codex: {colorize_pct(pct_str, pct)} (7d)")
+                    parts.append(f"Codex: {colorize_pct(pct_str, pct, reverse)} (7d)")
                 else:
-                    parts.append(f"Codex: {pct_str} (7d) {get_status_icon(pct)}")
+                    parts.append(f"Codex: {pct_str} (7d) {get_status_icon(pct, reverse)}")
         elif "error" in data:
             parts.append(f"Codex: {error_icon}")
 
@@ -1169,9 +1200,9 @@ def print_oneline(results: dict, window: str = "5h", use_color: bool = False):
             pct = data["token_quota"].get("percentage", 0)
             pct_str = f"{pct}% (5h)"
             if use_color:
-                parts.append(f"Z.AI: {colorize_pct(pct_str, pct)}")
+                parts.append(f"Z.AI: {colorize_pct(pct_str, pct, reverse)}")
             else:
-                parts.append(f"Z.AI: {pct_str} {get_status_icon(pct)}")
+                parts.append(f"Z.AI: {pct_str} {get_status_icon(pct, reverse)}")
         elif "error" in data:
             parts.append(f"Z.AI: {error_icon}")
 
@@ -1190,9 +1221,9 @@ def print_oneline(results: dict, window: str = "5h", use_color: bool = False):
                         pct_str = data["models"][model_id]["used"]
                         pct = float(pct_str.rstrip("%"))
                         if use_color:
-                            gemini_parts.append(f"{tier_name} {colorize_pct(pct_str, pct)}")
+                            gemini_parts.append(f"{tier_name} {colorize_pct(pct_str, pct, reverse)}")
                         else:
-                            gemini_parts.append(f"{tier_name} {pct_str} {get_status_icon(pct)}")
+                            gemini_parts.append(f"{tier_name} {pct_str} {get_status_icon(pct, reverse)}")
                         break  # Only show once per tier
             if gemini_parts:
                 parts.append(f"Gemini: ( {' | '.join(gemini_parts)} )")
@@ -1279,6 +1310,7 @@ Example Output:
     parser.add_argument("--gemini", action="store_true", help="Only check Gemini")
     parser.add_argument("--zai", action="store_true", help="Only check Z.AI")
     parser.add_argument("--openrouter", action="store_true", help="Only check OpenRouter")
+    parser.add_argument("--reverse", action="store_true", help="Reverse percentage display for supported providers (100%%=Full, 0%%=Empty)")
     parser.add_argument("--cached", action="store_true", help="Use cached data if fresh (< TTL), fetch if stale")
     parser.add_argument("--cache-ttl", type=int, metavar="SECONDS",
                         help="Override default TTL (default: 60, implies --cached)")
@@ -1303,13 +1335,13 @@ Example Output:
         results = {}
 
     if not skip_fetch and (check_all or args.claude):
-        results["claude"] = get_claude_usage()
+        results["claude"] = get_claude_usage(reverse=args.reverse)
     if not skip_fetch and (check_all or args.codex):
-        results["codex"] = get_codex_usage()
+        results["codex"] = get_codex_usage(reverse=args.reverse)
     if not skip_fetch and (check_all or args.gemini):
-        results["gemini"] = get_gemini_usage()
+        results["gemini"] = get_gemini_usage(reverse=args.reverse)
     if not skip_fetch and (check_all or args.zai):
-        results["zai"] = get_zai_usage()
+        results["zai"] = get_zai_usage(reverse=args.reverse)
     if check_all or args.openrouter:
         results["openrouter"] = get_openrouter_usage()
 
@@ -1321,21 +1353,21 @@ Example Output:
         print(json.dumps(results, indent=2))
     elif args.oneline:
         window = args.oneline if args.oneline in ("5h", "7d", "both") else "5h"
-        print_oneline(results, window, use_color=args.noemoji)
+        print_oneline(results, window, use_color=args.noemoji, reverse=args.reverse)
     else:
         print("\n🔍 AI CLI Usage Checker")
         print(f"   {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 
         if "claude" in results:
-            print_section("Claude Code", results["claude"])
+            print_section("Claude Code", results["claude"], reverse=args.reverse)
         if "codex" in results:
-            print_section("OpenAI Codex", results["codex"])
+            print_section("OpenAI Codex", results["codex"], reverse=args.reverse)
         if "gemini" in results:
-            print_section("Gemini CLI", results["gemini"])
+            print_section("Gemini CLI", results["gemini"], reverse=args.reverse)
         if "zai" in results:
-            print_section("Z.AI (5h shared - GLM-4.x)", results["zai"])
+            print_section("Z.AI (5h shared - GLM-4.x)", results["zai"], reverse=args.reverse)
         if "openrouter" in results:
-            print_section("OpenRouter", results["openrouter"])
+            print_section("OpenRouter", results["openrouter"], reverse=False)
 
         print("\n" + "="*50)
         print("  Done!")
