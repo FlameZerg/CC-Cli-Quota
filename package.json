@@ -2,7 +2,7 @@
     "name": "cc-cli-quota",
     "displayName": "CC Cli Quota",
     "description": "Monitoring AI CLI usage and quotas (Claude, Codex, Gemini, Z.ai, Openrouter) in VS Code.",
-    "version": "1.1.5",
+    "version": "1.1.8",
     "publisher": "FlameZerg",
     "repository": "https://github.com/FlameZerg/CC-Cli-Quota",
     "engines": {
@@ -76,7 +76,7 @@
                 "cclimits.reverseDisplay": {
                     "type": "boolean",
                     "default": false,
-                    "description": "Reverse percentage display: 100% means full quota, 0% means empty."
+                    "description": "Toggle to legacy ascending mode (0% = Full Quota). Default is 100% = Full Quota."
                 }
             }
         }

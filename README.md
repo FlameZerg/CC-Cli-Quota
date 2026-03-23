@@ -1,4 +1,4 @@
-﻿# <img src="https://raw.githubusercontent.com/FlameZerg/CC-Cli-Quota/main/icon.png" width="36" vertical-align="middle"> CC Cli Quota
+﻿<img src="https://raw.githubusercontent.com/FlameZerg/CC-Cli-Quota/main/icon.png" width="36" vertical-align="middle"> CC Cli Quota
 
 [![Marketplace](https://img.shields.io/visual-studio-marketplace/v/FlameZerg.cc-cli-quota?style=flat-square&label=Marketplace)](https://marketplace.visualstudio.com/items?itemName=FlameZerg.cc-cli-quota)
 [![Open VSX](https://img.shields.io/open-vsx/v/FlameZerg/cc-cli-quota?style=flat-square&label=Open%20VSX)](https://open-vsx.org/extension/FlameZerg/cc-cli-quota)
@@ -12,6 +12,7 @@ Monitoring of your AI CLI usage and quotas for **Claude Code, OpenAI Codex, Goog
 - 🕒 **Dynamic Refresh**: Intelligent caching with user-configurable refresh intervals (Default: 2 min).
 - 🖱️ **Interactive Status Bar**: Dynamic individual status entries for each active provider.
 - 🔍 **Detailed Insights**: Instant hover tooltips showing precise usage windows (5h/7d) and exact reset countdowns.
+- 🔄 **Display Modes**: Choose between traditional ascending (0% = Full) or modern descending (100% = Full, default) quota tracking.
 - 🔐 **Secure Credential Management**: Easy API key configuration within VS Code for non-OAuth providers.
 - ⚡ **Lightweight & Fast**: Built with performance in mind using a lean Python-based monitoring engine.
 

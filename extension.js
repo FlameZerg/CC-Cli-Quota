@@ -80,8 +80,8 @@ function activate(context) {
                 id: "toggleReverseDisplay",
                 label: "$(arrow-swap) Toggle Display Mode",
                 picked: config.get('reverseDisplay') === true,
-                description: config.get('reverseDisplay') ? "$(check) 100% = Full Quota" : "$(x) 0% = Full Quota",
-                detail: config.get('reverseDisplay') ? "Reversed mode: 100%->0% (100% means full quota)" : "Default mode: 0%->100% (0% means full quota)"
+                description: config.get('reverseDisplay') ? "$(check) 0% = Full Quota" : "$(x) 100% = Full Quota (Default)",
+                detail: config.get('reverseDisplay') ? "Legacy mode: 0%->100% (Ascending)" : "Default mode: 100%->0% (Descending)"
             },
             {
                 id: "setRefreshInterval",
@@ -321,11 +321,15 @@ async function updateStatusBar(logTrigger = false, bypassCache = false, isRetry 
                 }
 
                 let p5h = 0, p7d = 0, label = providerNames[id] || id;
+                let has7d = false;
                 let tooltip = `${label} Usage Details:`;
 
                 if (id === 'claude') {
                     p5h = parsePct(data.five_hour?.used);
-                    p7d = parsePct(data.seven_day?.used);
+                    if (data.seven_day) {
+                        p7d = parsePct(data.seven_day.used);
+                        has7d = true;
+                    }
                     let line5h = `- ${data.five_hour?.used || '0%'} (5h)`;
                     if (data.five_hour?.resets_in) line5h += ` | Reset in ${data.five_hour.resets_in}`;
                     let line7d = `- ${data.seven_day?.used || '0%'} (7d)`;
@@ -333,10 +337,15 @@ async function updateStatusBar(logTrigger = false, bypassCache = false, isRetry 
                     tooltip += `\n${line5h}\n${line7d}`;
                 } else if (id === 'codex') {
                     p5h = parsePct(data.primary_window?.used);
-                    p7d = parsePct(data.secondary_window?.used);
-                    let line5h = `- ${data.primary_window?.used || '0%'} (5h)`;
+                    if (data.secondary_window) {
+                        p7d = parsePct(data.secondary_window.used);
+                        has7d = true;
+                    }
+                    let w1 = data.primary_window?.window || "5h";
+                    let line5h = `- ${data.primary_window?.used || '0%'} (${w1})`;
                     if (data.primary_window?.resets_in) line5h += ` | Reset in ${data.primary_window.resets_in}`;
-                    let line7d = `- ${data.secondary_window?.used || '0%'} (7d)`;
+                    let w2 = data.secondary_window?.window || "7d";
+                    let line7d = `- ${data.secondary_window?.used || '0%'} (${w2})`;
                     if (data.secondary_window?.resets_in) line7d += ` | Reset in ${data.secondary_window.resets_in}`;
                     tooltip += `\n${line5h}\n${line7d}`;
                 } else if (id === 'gemini' && data.models) {
@@ -350,7 +359,7 @@ async function updateStatusBar(logTrigger = false, bypassCache = false, isRetry 
                         if (d.resets_in) line += ` | Reset in ${d.resets_in}`;
                         tooltip += line;
                     });
-                    p5h = reverseDisplay ? gMin : gMax;
+                    p5h = reverseDisplay ? gMax : gMin;
                 } else if (id === 'zai') {
                     p5h = data.token_quota?.percentage || 0;
                     let line = `\n- ${p5h}% (Quota)`;
@@ -367,23 +376,27 @@ async function updateStatusBar(logTrigger = false, bypassCache = false, isRetry 
                 }
 
                 let text = `$(pulse) ${label}: ${p5h}%`;
-                if (p7d > 0) text += `|${p7d}%`;
+                if (has7d) text += `|${p7d}%`;
                 item.text = text;
                 item.tooltip = tooltip;
 
-                let applyReverseLogic = reverseDisplay && ['claude', 'codex', 'gemini', 'zai'].includes(id);
+                let isDescendingMode = !reverseDisplay;
+                let shouldApplyThresholds = ['claude', 'codex', 'gemini', 'zai'].includes(id);
                 let isBad = false;
                 let isWarn = false;
-                if (!applyReverseLogic) {
+
+                if (shouldApplyThresholds) {
                     let stat = p5h;
-                    if (data.seven_day || data.secondary_window) stat = Math.max(p5h, p7d);
-                    if (stat >= 90) isBad = true;
-                    else if (stat >= 70) isWarn = true;
-                } else {
-                    let stat = p5h;
-                    if (data.seven_day || data.secondary_window) stat = Math.min(p5h, p7d);
-                    if (stat <= 10) isBad = true;
-                    else if (stat <= 30) isWarn = true;
+                    if (data.seven_day || data.secondary_window) {
+                        stat = isDescendingMode ? Math.min(p5h, p7d) : Math.max(p5h, p7d);
+                    }
+                    if (isDescendingMode) {
+                        if (stat <= 10) isBad = true;
+                        else if (stat <= 30) isWarn = true;
+                    } else {
+                        if (stat >= 90) isBad = true;
+                        else if (stat >= 70) isWarn = true;
+                    }
                 }
 
                 if (isBad) item.color = new vscode.ThemeColor('statusBarItem.errorForeground');

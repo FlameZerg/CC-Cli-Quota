@@ -277,8 +277,8 @@ def get_claude_usage(reverse=False) -> dict:
 
         if "five_hour" in data and data["five_hour"]:
             util = data['five_hour'].get('utilization', 0)
-            u_val = 100 - util if reverse else util
-            r_val = util if reverse else 100 - util
+            u_val = util if reverse else 100 - util
+            r_val = 100 - util if reverse else util
             result["five_hour"] = {
                 "used": f"{u_val:.1f}%",
                 "remaining": f"{r_val:.1f}%",
@@ -287,8 +287,8 @@ def get_claude_usage(reverse=False) -> dict:
 
         if "seven_day" in data and data["seven_day"]:
             util = data['seven_day'].get('utilization', 0)
-            u_val = 100 - util if reverse else util
-            r_val = util if reverse else 100 - util
+            u_val = util if reverse else 100 - util
+            r_val = 100 - util if reverse else util
             result["seven_day"] = {
                 "used": f"{u_val:.1f}%",
                 "remaining": f"{r_val:.1f}%",
@@ -297,7 +297,7 @@ def get_claude_usage(reverse=False) -> dict:
 
         if "seven_day_opus" in data and data["seven_day_opus"]:
             util = data['seven_day_opus'].get('utilization', 0)
-            u_val = 100 - util if reverse else util
+            u_val = util if reverse else 100 - util
             result["opus"] = {
                 "used": f"{u_val:.1f}%",
             }
@@ -374,8 +374,8 @@ def get_codex_usage(reverse=False) -> dict:
                 if primary := rate_limit.get("primary_window"):
                     window_hours = primary.get("limit_window_seconds", 18000) // 3600
                     util = primary.get('used_percent', 0)
-                    u_val = 100 - util if reverse else util
-                    r_val = util if reverse else 100 - util
+                    u_val = util if reverse else 100 - util
+                    r_val = 100 - util if reverse else util
                     result["primary_window"] = {
                         "used": f"{u_val}%",
                         "remaining": f"{r_val}%",
@@ -395,8 +395,8 @@ def get_codex_usage(reverse=False) -> dict:
                 if secondary := rate_limit.get("secondary_window"):
                     window_days = secondary.get("limit_window_seconds", 604800) // 86400
                     util = secondary.get('used_percent', 0)
-                    u_val = 100 - util if reverse else util
-                    r_val = util if reverse else 100 - util
+                    u_val = util if reverse else 100 - util
+                    r_val = 100 - util if reverse else util
                     result["secondary_window"] = {
                         "used": f"{u_val}%",
                         "remaining": f"{r_val}%",
@@ -419,7 +419,7 @@ def get_codex_usage(reverse=False) -> dict:
             if review_limit := data.get("code_review_rate_limit", {}):
                 if review_primary := review_limit.get("primary_window"):
                     util = review_primary.get('used_percent', 0)
-                    u_val = 100 - util if reverse else util
+                    u_val = util if reverse else 100 - util
                     result["code_review"] = {
                         "used": f"{u_val}%",
                     }
@@ -771,7 +771,7 @@ def get_gemini_usage(reverse=False) -> dict:
                             # Convert to percentage used
                             used_pct = round((1 - remaining) * 100, 1)
                             remaining_pct = round(remaining * 100, 1)
-                            if reverse:
+                            if not reverse:
                                 used_pct, remaining_pct = remaining_pct, used_pct
 
                             result["models"][model_id] = {
@@ -852,7 +852,7 @@ def get_zai_usage(reverse=False) -> dict:
                 remaining = limit.get("remaining", 0)
                 pct = limit.get("percentage", 0)
                 
-                if reverse:
+                if not reverse:
                     pct = round(100.0 - pct, 1)
 
                 result["token_quota"] = {
@@ -942,19 +942,19 @@ def print_section(name: str, data: dict, reverse: bool = False):
     if "five_hour" in data:
         fh = data["five_hour"]
         print(f"\n  5-Hour Window:")
-        print(f"    {'Remaining:' if reverse else 'Used:     '} {fh['used']}")
-        print(f"    {'Used:     ' if reverse else 'Remaining:'} {fh['remaining']}")
+        print(f"    {'Remaining:' if not reverse else 'Used:     '} {fh['used']}")
+        print(f"    {'Used:     ' if not reverse else 'Remaining:'} {fh['remaining']}")
         print(f"    Resets in:  {fh['resets_in']}")
 
     if "seven_day" in data:
         sd = data["seven_day"]
         print(f"\n  7-Day Window:")
-        print(f"    {'Remaining:' if reverse else 'Used:     '} {sd['used']}")
-        print(f"    {'Used:     ' if reverse else 'Remaining:'} {sd['remaining']}")
+        print(f"    {'Remaining:' if not reverse else 'Used:     '} {sd['used']}")
+        print(f"    {'Used:     ' if not reverse else 'Remaining:'} {sd['remaining']}")
         print(f"    Resets in:  {sd['resets_in']}")
 
     if "opus" in data:
-        label = "remaining" if reverse else "used"
+        label = "remaining" if not reverse else "used"
         print(f"\n  Opus (7-day): {data['opus']['used']} {label}")
 
     # Codex-specific (ChatGPT subscription quotas)
@@ -965,8 +965,8 @@ def print_section(name: str, data: dict, reverse: bool = False):
         pw = data["primary_window"]
         window = pw.get("window", "5h")
         print(f"\n  {window} Window:")
-        print(f"    {'Remaining:' if reverse else 'Used:     '} {pw['used']}")
-        print(f"    {'Used:     ' if reverse else 'Remaining:'} {pw['remaining']}")
+        print(f"    {'Remaining:' if not reverse else 'Used:     '} {pw['used']}")
+        print(f"    {'Used:     ' if not reverse else 'Remaining:'} {pw['remaining']}")
         if "resets_in" in pw:
             print(f"    Resets in:  {pw['resets_in']}")
 
@@ -974,14 +974,14 @@ def print_section(name: str, data: dict, reverse: bool = False):
         sw = data["secondary_window"]
         window = sw.get("window", "7d")
         print(f"\n  {window} Window:")
-        print(f"    {'Remaining:' if reverse else 'Used:     '} {sw['used']}")
-        print(f"    {'Used:     ' if reverse else 'Remaining:'} {sw['remaining']}")
+        print(f"    {'Remaining:' if not reverse else 'Used:     '} {sw['used']}")
+        print(f"    {'Used:     ' if not reverse else 'Remaining:'} {sw['remaining']}")
         if "resets_in" in sw:
             print(f"    Resets in:  {sw['resets_in']}")
 
     if "code_review" in data:
         cr = data["code_review"]
-        label = "remaining" if reverse else "used"
+        label = "remaining" if not reverse else "used"
         print(f"\n  Code Review Quota: {cr['used']} {label}")
 
     if "limit_reached" in data:
@@ -1023,8 +1023,8 @@ def print_section(name: str, data: dict, reverse: bool = False):
                     remaining = model_data.get("remaining", "?")
                     reset = model_data.get("resets_in", "")
                     reset_str = f" (resets: {reset})" if reset else ""
-                    label1 = "remaining" if reverse else "used"
-                    label2 = "used" if reverse else "remaining"
+                    label1 = "remaining" if not reverse else "used"
+                    label2 = "used" if not reverse else "remaining"
                     print(f"    {tier_name}: {used} {label1}, {remaining} {label2}{reset_str}")
                     break  # Only need first model from each tier
 
@@ -1034,8 +1034,8 @@ def print_section(name: str, data: dict, reverse: bool = False):
         tq = data["token_quota"]
         val1 = tq.get("percentage", 0)
         val2 = round(100.0 - val1, 1)
-        label1 = "Remaining" if reverse else "Used"
-        label2 = "Used" if reverse else "Remaining"
+        label1 = "Remaining" if not reverse else "Used"
+        label2 = "Used" if not reverse else "Remaining"
         print(f"\n  Token Quota:")
         print(f"    {label1+':':<11} {val1}%")
         print(f"    {label2+':':<11} {val2}%")
@@ -1096,7 +1096,7 @@ def print_section(name: str, data: dict, reverse: bool = False):
 
 def get_color_for_pct(pct: float, reverse: bool = False) -> str:
     """Get ANSI color code based on usage percentage"""
-    if reverse:
+    if not reverse:
         pct = 100.0 - pct
     if pct >= 100:
         return COLORS['bold_red']
@@ -1116,7 +1116,7 @@ def colorize_pct(pct_str: str, pct: float, reverse: bool = False) -> str:
 
 def get_status_icon(pct: float, reverse: bool = False) -> str:
     """Get status emoji based on usage percentage"""
-    if reverse:
+    if not reverse:
         pct = 100.0 - pct
     if pct >= 100:
         return "❌"
