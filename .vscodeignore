@@ -1,4 +1,4 @@
-node_modules
+node_modules/
 .vscode
 .git
 .gitignore
@@ -6,3 +6,5 @@ node_modules
 package-lock.json
 pnpm-lock.yaml
 backup/
+donation.jpg
+.coderabbit.yaml

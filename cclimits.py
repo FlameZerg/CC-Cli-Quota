@@ -8,8 +8,10 @@ import json
 import os
 import subprocess
 import sys
-from datetime import datetime
+import time
+from datetime import datetime, timezone
 from pathlib import Path
+
 
 # Optional: use requests if available, fallback to urllib
 try:
@@ -341,8 +343,9 @@ def get_openai_credentials() -> dict:
     return result
 
 
-def get_codex_usage(reverse=False) -> dict:
+def get_codex_usage(reverse=False, banked_reset_ttl=60, allow_fetch_banked_reset=False) -> dict:
     """Fetch Codex usage via ChatGPT backend API"""
+
     creds = get_openai_credentials()
 
     if not creds.get("access_token") and not creds.get("api_key"):
@@ -424,6 +427,10 @@ def get_codex_usage(reverse=False) -> dict:
                         "used": f"{u_val}%",
                     }
 
+            # Rate limit reset credits (Banked Reset)
+            if (credits := get_codex_reset_credits(creds, ttl_minutes=banked_reset_ttl, allow_fetch=allow_fetch_banked_reset)) is not None:
+                result["reset_credits"] = credits
+
             return result
 
         elif status == 401:
@@ -451,6 +458,93 @@ def get_codex_usage(reverse=False) -> dict:
         "error": "Authentication failed",
         "hint": "Run 'codex login' to re-authenticate"
     }
+
+
+CREDITS_CACHE_FILE = CACHE_DIR / "codex_credits.json"
+
+
+def get_codex_reset_credits(creds: dict, ttl_minutes: int = 60, allow_fetch: bool = False) -> list | None:
+    """Fetch Codex rate limit reset credits with local timezone expires_at and strict network isolation"""
+    if not creds.get("access_token"):
+        return None
+
+    if ttl_minutes <= 0:
+        if not allow_fetch:
+            return []
+
+    ttl_seconds = ttl_minutes * 60
+    cached_data = None
+    is_fresh = False
+
+    try:
+        if CREDITS_CACHE_FILE.exists():
+            with open(CREDITS_CACHE_FILE, 'r', encoding='utf-8') as f:
+                cached_info = json.load(f)
+            if isinstance(cached_info, dict) and "timestamp" in cached_info and "data" in cached_info:
+                cached_data = cached_info.get("data")
+                if ttl_minutes > 0 and time.time() - cached_info["timestamp"] < ttl_seconds:
+                    is_fresh = True
+    except Exception:
+        pass
+
+    # 1. If cache is fresh, always use cache (no network)
+    if is_fresh and cached_data is not None:
+        return cached_data
+
+    # 2. If allow_fetch is False (e.g. from timer), NEVER fetch network requests even if cache is expired
+    if not allow_fetch:
+        return cached_data if cached_data is not None else []
+
+    # 3. Only fetch from network if allow_fetch is True (e.g. startup or manual config change)
+    headers = {
+        "Authorization": f"Bearer {creds['access_token']}",
+        "User-Agent": "Mozilla/5.0",
+        "Accept": "application/json",
+    }
+
+    status, data = http_get("https://chatgpt.com/backend-api/wham/rate-limit-reset-credits", headers)
+
+    if status == 200 and isinstance(data, dict):
+        raw_credits = data.get("credits") or data.get("rate_limit_reset_credits") or []
+        if not isinstance(raw_credits, list):
+            raw_credits = []
+        formatted_credits = []
+        for item in raw_credits:
+            if not isinstance(item, dict):
+                continue
+            exp_utc = item.get("expires_at")
+            if exp_utc:
+                try:
+                    exp_clean = exp_utc.replace("Z", "+00:00") if exp_utc.endswith("Z") else exp_utc
+                    utc_dt = datetime.fromisoformat(exp_clean)
+                    if utc_dt.tzinfo is None:
+                        utc_dt = utc_dt.replace(tzinfo=timezone.utc)
+                    local_dt = utc_dt.astimezone()
+                    local_str = local_dt.strftime("%Y-%m-%d %H:%M:%S")
+                except Exception:
+                    local_str = exp_utc
+                formatted_credits.append({"expires_at": local_str})
+
+        # Save to long cache if caching enabled
+        if ttl_minutes > 0:
+            try:
+                CREDITS_CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
+                with open(CREDITS_CACHE_FILE, 'w', encoding='utf-8') as f:
+                    json.dump({"timestamp": time.time(), "data": formatted_credits}, f, indent=2)
+            except Exception:
+                pass
+
+        return formatted_credits
+
+    # Return cached data on network error if available
+    return cached_data if cached_data is not None else None
+
+
+
+
+
+
+
 
 
 def _extract_oauth_from_file(path: Path) -> tuple[str, str] | None:
@@ -1314,9 +1408,14 @@ Example Output:
     parser.add_argument("--cached", action="store_true", help="Use cached data if fresh (< TTL), fetch if stale")
     parser.add_argument("--cache-ttl", type=int, metavar="SECONDS",
                         help="Override default TTL (default: 60, implies --cached)")
+    parser.add_argument("--banked-reset-ttl", type=int, default=60, metavar="MINUTES",
+                        help="Banked Reset Cache TTL in minutes (default: 60)")
+    parser.add_argument("--fetch-banked-reset", action="store_true",
+                        help="Allow fetching Banked Reset from network if cache is expired")
     args = parser.parse_args()
 
     # Determine cache settings
+
     use_cache = args.cached or args.cache_ttl is not None
     cache_ttl = args.cache_ttl if args.cache_ttl is not None else DEFAULT_CACHE_TTL
 
@@ -1336,8 +1435,20 @@ Example Output:
 
     if not skip_fetch and (check_all or args.claude):
         results["claude"] = get_claude_usage(reverse=args.reverse)
-    if not skip_fetch and (check_all or args.codex):
-        results["codex"] = get_codex_usage(reverse=args.reverse)
+    if (check_all or args.codex):
+        if not skip_fetch:
+            results["codex"] = get_codex_usage(
+                reverse=args.reverse,
+                banked_reset_ttl=args.banked_reset_ttl,
+                allow_fetch_banked_reset=args.fetch_banked_reset
+            )
+        elif args.fetch_banked_reset and isinstance(results.get("codex"), dict):
+            creds = get_openai_credentials()
+            res_credits = get_codex_reset_credits(creds, ttl_minutes=args.banked_reset_ttl, allow_fetch=True)
+            if res_credits is not None:
+                results["codex"]["reset_credits"] = res_credits
+
+
     if not skip_fetch and (check_all or args.gemini):
         results["gemini"] = get_gemini_usage(reverse=args.reverse)
     if not skip_fetch and (check_all or args.zai):

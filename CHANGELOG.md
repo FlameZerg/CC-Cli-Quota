@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.2.0]
+
+### Added
+
+- **Banked Reset Support**: Automatically displays Codex Banked Reset expiration times in your local timezone.
+- **Customizable Cache Control**: Configurable local cache for Banked Reset (default 60 minutes) to eliminate unnecessary network requests.
+- **Unified Settings UI**: Cleaned up the QuickPick settings menu with consistent `Enabled` / `Disabled` status indicators.
+
+### Fixed
+
+- **Smart Quota Display**: Dynamically hides missing 5-hour or 7-day quota windows based on upstream data.
+- **Improved Stability**: Resolved API response parsing issues and UI configuration errors.
+
 ## [1.1.8]
 
 ### Fixed
